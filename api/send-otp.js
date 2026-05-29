@@ -39,7 +39,7 @@ export default async function handler(req, res) {
         },
         body: new URLSearchParams({
           To: phone,
-          Channel: 'whatsapp',   // <- WhatsApp channel
+          Channel: 'sms',   // <- WhatsApp channel
         }),
       }
     );
