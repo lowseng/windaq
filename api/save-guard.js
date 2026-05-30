@@ -31,7 +31,6 @@ module.exports = async function handler(req, res) {
             'Phone':         phone,
             'Verified':      true,
             'Registered At': new Date().toISOString(),
-            'Channel':       'SMS',
           }
         }),
       }
