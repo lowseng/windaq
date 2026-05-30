@@ -822,35 +822,20 @@ async function step3Save() {
   setStatus('s3Status', '', '');
 
   try {
-    // Save to Airtable
-    const res = await fetch(
-      `https://api.airtable.com/v0/${AIRTABLE_BASE}/${encodeURIComponent(TABLE_GUARDS)}`,
-      {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${AIRTABLE_TOKEN}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          fields: {
-            'Name':          guard.name,
-            'IC Staff ID':   guard.ic,
-            'Posting':       guard.post,
-            'Phone':         guard.phone,
-            'Verified':      true,
-            'Registered At': guard.registered_at,
-            'Channel':       'WhatsApp',
-          }
-        }),
-      }
-    );
+    const res = await fetch(`${BACKEND}/api/save-guard`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name:  guard.name,
+        ic:    guard.ic,
+        post:  guard.post,
+        phone: guard.phone,
+      }),
+    });
 
-    if (!res.ok) {
-      const err = await res.json();
-      throw new Error(err.error?.message || 'Airtable error');
-    }
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error || 'Airtable error');
 
-    // Save locally so future scans skip registration
     saveGuard(guard);
     populateDone(guard);
     goToStep(4);
