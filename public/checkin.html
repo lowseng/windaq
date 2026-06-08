@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Patrol Check-in</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Sora:wght@300;400;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --green:     #00C853;
+  --green-dim: #00963e;
+  --ink:       #0a0f0d;
+  --ink2:      #2a3330;
+  --muted:     #6b7c78;
+  --border:    rgba(0,200,83,0.18);
+  --surface:   #f2f7f4;
+  --card:      #ffffff;
+  --danger:    #ff4444;
+  --warn:      #f39c12;
+  --radius:    16px;
+  --mono:      'DM Mono', monospace;
+  --sans:      'Sora', sans-serif;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: var(--sans);
+  background: var(--surface);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 24px 16px 48px;
+  position: relative;
+  overflow-x: hidden;
+}
+body::before {
+  content: '';
+  position: fixed; inset: 0;
+  background-image:
+    linear-gradient(rgba(0,200,83,0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,200,83,0.04) 1px, transparent 1px);
+  background-size: 32px 32px;
+  pointer-events: none; z-index: 0;
+}
+.wrap { position: relative; z-index: 1; width: 100%; max-width: 420px; }
+
+/* HEADER */
+.header { text-align: center; margin-bottom: 24px; animation: fadeDown 0.5s ease both; }
+.header-badge {
+  display: inline-flex; align-items: center; gap: 7px;
+  background: var(--ink); color: var(--green);
+  font-family: var(--mono); font-size: 11px; letter-spacing: 0.12em;
+  text-transform: uppercase; padding: 6px 14px; border-radius: 100px; margin-bottom: 14px;
+}
+.header-badge .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); animation: pulse 1.8s ease infinite; }
+h1 { font-size: 26px; font-weight: 700; color: var(--ink); line-height: 1.15; letter-spacing: -0.03em; }
+h1 span { color: var(--green-dim); }
+.subhead { margin-top: 6px; font-size: 13px; color: var(--muted); font-weight: 300; }
+
+/* CARD */
+.card {
+  background: var(--card); border-radius: var(--radius);
+  border: 1px solid rgba(0,0,0,0.07); padding: 24px 20px;
+  box-shadow: 0 2px 24px rgba(0,0,0,0.06); animation: fadeUp 0.5s 0.1s ease both;
+  margin-bottom: 14px;
+}
+
+/* SECTIONS */
+.section { display: none; }
+.section.active { display: block; animation: fadeIn 0.3s ease both; }
+
+/* GUARD BADGE */
+.guard-badge {
+  display: flex; align-items: center; gap: 12px;
+  padding: 14px; background: var(--surface);
+  border: 1.5px solid var(--border); border-radius: 12px; margin-bottom: 18px;
+}
+.avatar {
+  width: 44px; height: 44px; border-radius: 50%;
+  background: var(--ink); color: var(--green);
+  font-size: 15px; font-weight: 700; font-family: var(--mono);
+  display: flex; align-items: center; justify-content: center;
+  border: 2px solid var(--green); flex-shrink: 0;
+}
+.badge-info .name { font-size: 15px; font-weight: 700; color: var(--ink); }
+.badge-info .meta { font-size: 12px; color: var(--muted); font-family: var(--mono); margin-top: 2px; }
+.badge-change { margin-left: auto; font-size: 12px; color: var(--muted); cursor: pointer; text-decoration: underline; flex-shrink: 0; }
+
+/* INFO ROWS */
+.info-row {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 11px 13px; background: var(--surface);
+  border-radius: 10px; margin-bottom: 10px;
+}
+.info-row .icon { font-size: 18px; flex-shrink: 0; margin-top: 1px; }
+.info-row .label { font-size: 11px; color: var(--muted); font-family: var(--mono); text-transform: uppercase; letter-spacing: 0.06em; }
+.info-row .value { font-size: 14px; font-weight: 600; color: var(--ink2); margin-top: 2px; line-height: 1.3; }
+.info-row .value.mono { font-family: var(--mono); font-size: 13px; }
+.info-row .value.pending { color: var(--warn); }
+.info-row .value.ok { color: var(--green-dim); }
+.info-row .value.err { color: var(--danger); }
+
+/* GPS ACCURACY BADGE */
+.gps-accuracy {
+  display: inline-block; font-size: 10px; font-family: var(--mono);
+  padding: 2px 7px; border-radius: 100px; margin-left: 6px; vertical-align: middle;
+}
+.gps-accuracy.good { background: #e8f8ef; color: var(--green-dim); }
+.gps-accuracy.fair { background: #fef3e2; color: var(--warn); }
+.gps-accuracy.poor { background: #fde8e8; color: var(--danger); }
+
+/* NOTES */
+.field-label { font-size: 12px; font-weight: 600; color: var(--ink2); margin-bottom: 7px; display: block; }
+textarea {
+  width: 100%; padding: 11px 14px; border: 1.5px solid #e0e8e4; border-radius: 10px;
+  font-size: 14px; font-family: var(--sans); color: var(--ink); background: #fafcfb;
+  resize: none; line-height: 1.5; transition: border-color 0.2s;
+}
+textarea:focus { outline: none; border-color: var(--green); box-shadow: 0 0 0 3px rgba(0,200,83,0.12); background: #fff; }
+
+/* BUTTONS */
+.btn { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; padding: 14px 20px; border: none; border-radius: 10px; font-size: 15px; font-weight: 600; font-family: var(--sans); cursor: pointer; transition: opacity 0.15s, transform 0.1s, box-shadow 0.15s; letter-spacing: -0.01em; margin-top: 14px; }
+.btn:active:not(:disabled) { transform: scale(0.98); }
+.btn-primary { background: var(--ink); color: var(--green); box-shadow: 0 4px 16px rgba(0,0,0,0.15); }
+.btn-primary:disabled { opacity: 0.45; cursor: default; }
+.btn-ghost { background: var(--surface); color: var(--muted); font-weight: 400; font-size: 14px; box-shadow: none; }
+.btn-danger { background: #fff0f0; color: #c0392b; font-weight: 600; font-size: 14px; box-shadow: none; border: 1px solid #fcc; }
+
+/* STATUS */
+.status { padding: 10px 14px; border-radius: 8px; font-size: 13px; margin-top: 12px; line-height: 1.4; }
+.status.err  { background: #fff0f0; color: #c0392b; border: 1px solid #fcc; }
+.status.ok   { background: #f0fdf5; color: #1a7a3a; border: 1px solid #b2f5cc; }
+.status.warn { background: #fef3e2; color: #856404; border: 1px solid #fde8a0; }
+
+/* SUCCESS */
+.check-circle { width: 64px; height: 64px; border-radius: 50%; background: var(--green); display: flex; align-items: center; justify-content: center; margin: 0 auto 16px; font-size: 30px; color: white; animation: pop 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) both; }
+.success-title { font-size: 22px; font-weight: 700; color: var(--ink); letter-spacing: -0.02em; }
+.success-sub { font-size: 14px; color: var(--muted); margin-top: 6px; line-height: 1.5; }
+.divider { height: 1px; background: #eef2f0; margin: 18px 0; }
+.sum-row { display: flex; justify-content: space-between; align-items: center; padding: 7px 0; border-bottom: 1px dashed #eef2f0; font-size: 13px; }
+.sum-row:last-child { border-bottom: none; }
+.sum-row .key { color: var(--muted); }
+.sum-row .val { font-weight: 600; color: var(--ink2); font-family: var(--mono); font-size: 12px; text-align: right; max-width: 60%; }
+
+/* NOT SIGNED IN */
+.not-signed-in { text-align: center; padding: 12px 0; }
+.not-signed-in .icon { font-size: 48px; margin-bottom: 14px; }
+.not-signed-in h3 { font-size: 18px; font-weight: 700; color: var(--ink); margin-bottom: 8px; }
+.not-signed-in p { font-size: 14px; color: var(--muted); line-height: 1.55; margin-bottom: 20px; }
+
+/* SPINNER */
+.spinner { width: 18px; height: 18px; border: 2px solid rgba(255,255,255,0.3); border-top-color: currentColor; border-radius: 50%; animation: spin 0.7s linear infinite; display: inline-block; }
+
+/* CLOCK */
+.live-clock { font-family: var(--mono); font-size: 13px; }
+
+@keyframes fadeDown { from { opacity:0; transform:translateY(-12px); } to { opacity:1; transform:none; } }
+@keyframes fadeUp   { from { opacity:0; transform:translateY(12px);  } to { opacity:1; transform:none; } }
+@keyframes fadeIn   { from { opacity:0; } to { opacity:1; } }
+@keyframes spin     { to { transform: rotate(360deg); } }
+@keyframes pulse    { 0%,100% { opacity:1; } 50% { opacity:0.3; } }
+@keyframes pop      { from { transform: scale(0); } to { transform: scale(1); } }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="header">
+    <div class="header-badge"><span class="dot"></span>Patrol Check-in</div>
+    <h1>Guard <span>Patrol</span></h1>
+    <p class="subhead" id="headerCheckpoint">Loading checkpoint…</p>
+  </div>
+
+  <div class="card">
+
+    <!-- NOT SIGNED IN -->
+    <div class="section" id="sNoAuth">
+      <div class="not-signed-in">
+        <div class="icon">🔒</div>
+        <h3>Not signed in</h3>
+        <p>You need to sign in before logging a patrol check-in.</p>
+        <a href="signin.html"><button class="btn btn-primary" style="margin-top:0">→ Sign In</button></a>
+        <a href="index.html"><button class="btn btn-ghost">New guard? Register here</button></a>
+      </div>
+    </div>
+
+    <!-- CHECKIN FORM -->
+    <div class="section" id="sCheckin">
+
+      <!-- Guard badge -->
+      <div class="guard-badge">
+        <div class="avatar" id="guardAvatar">?</div>
+        <div class="badge-info">
+          <div class="name" id="guardName">—</div>
+          <div class="meta" id="guardMeta">—</div>
+        </div>
+        <span class="badge-change" onclick="goSignIn()">Change</span>
+      </div>
+
+      <!-- Checkpoint -->
+      <div class="info-row">
+        <span class="icon">📍</span>
+        <div>
+          <div class="label">Checkpoint</div>
+          <div class="value" id="displayCheckpoint">—</div>
+        </div>
+      </div>
+
+      <!-- Time -->
+      <div class="info-row">
+        <span class="icon">🕐</span>
+        <div>
+          <div class="label">Time</div>
+          <div class="value live-clock" id="displayTime">—</div>
+        </div>
+      </div>
+
+      <!-- GPS -->
+      <div class="info-row">
+        <span class="icon">🌐</span>
+        <div>
+          <div class="label">GPS Location</div>
+          <div class="value mono pending" id="displayGps">Acquiring location…</div>
+        </div>
+      </div>
+
+      <!-- Notes -->
+      <div style="margin-top: 4px; margin-bottom: 4px;">
+        <label class="field-label" for="notes">Notes <span style="font-weight:400;color:var(--muted)">(optional)</span></label>
+        <textarea id="notes" rows="3" placeholder="Any observations, incidents, or remarks…"></textarea>
+      </div>
+
+      <button class="btn btn-primary" id="btnSubmit" onclick="submitCheckin()">
+        ✓ Submit Patrol Check-in
+      </button>
+      <div id="checkinStatus"></div>
+    </div>
+
+    <!-- SUCCESS -->
+    <div class="section" id="sDone">
+      <div style="text-align:center; padding: 8px 0">
+        <div class="check-circle">✓</div>
+        <div class="success-title">Check-in recorded!</div>
+        <div class="success-sub" id="doneMsg">—</div>
+        <div class="divider"></div>
+        <div style="text-align:left">
+          <div class="sum-row"><span class="key">Guard</span><span class="val" id="dGuard">—</span></div>
+          <div class="sum-row"><span class="key">Checkpoint</span><span class="val" id="dCheckpoint">—</span></div>
+          <div class="sum-row"><span class="key">Time</span><span class="val" id="dTime">—</span></div>
+          <div class="sum-row"><span class="key">GPS</span><span class="val" id="dGps">—</span></div>
+        </div>
+        <div style="margin-top:18px; padding:13px; background:var(--surface); border-radius:10px; font-size:13px; color:var(--muted); line-height:1.55;">
+          🔄 Scan the <strong style="color:var(--ink2)">next checkpoint QR</strong> to continue your patrol round.
+        </div>
+        <button class="btn btn-ghost" onclick="resetForm()">↩ Check in again</button>
+        <button class="btn btn-danger" onclick="signOut()">🚪 Sign Out</button>
+      </div>
+    </div>
+
+  </div><!-- /card -->
+</div><!-- /wrap -->
+
+<script>
+// ══════════════════════════════════════════════════
+// CONFIG
+// ══════════════════════════════════════════════════
+const BACKEND = 'https://windaq.vercel.app';
+// ══════════════════════════════════════════════════
+
+// Read checkpoint from QR code URL params
+const params         = new URLSearchParams(window.location.search);
+const checkpointId   = params.get('id')   || 'UNKNOWN';
+const checkpointName = params.get('name') || 'Unknown Checkpoint';
+
+let lat = null, lng = null, accuracy = null, gpsError = false;
+let clockInterval = null;
+
+// ── INIT ─────────────────────────────────────────
+(function init() {
+  const guard = getGuard();
+
+  // Set header
+  document.getElementById('headerCheckpoint').textContent = checkpointName;
+  document.getElementById('displayCheckpoint').textContent =
+    checkpointName + (checkpointId !== 'UNKNOWN' ? ` · ${checkpointId}` : '');
+
+  if (!guard || !guard.verified) {
+    showSection('sNoAuth');
+    return;
+  }
+
+  // Populate guard info
+  const initials = guard.name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0,2);
+  document.getElementById('guardAvatar').textContent = initials;
+  document.getElementById('guardName').textContent   = guard.name;
+  document.getElementById('guardMeta').textContent   = guard.phone + (guard.post ? ' · ' + guard.post : '');
+
+  showSection('sCheckin');
+  startClock();
+  startGps();
+})();
+
+// ── CLOCK ─────────────────────────────────────────
+function startClock() {
+  updateClock();
+  clockInterval = setInterval(updateClock, 1000);
+}
+function updateClock() {
+  document.getElementById('displayTime').textContent =
+    new Date().toLocaleString('en-MY', {
+      weekday: 'short', day: 'numeric', month: 'short',
+      hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true
+    });
+}
+
+// ── GPS ───────────────────────────────────────────
+function startGps() {
+  if (!navigator.geolocation) {
+    setGpsDisplay('Not available on this device', 'err');
+    gpsError = true; return;
+  }
+  navigator.geolocation.getCurrentPosition(
+    pos => {
+      lat      = pos.coords.latitude;
+      lng      = pos.coords.longitude;
+      accuracy = Math.round(pos.coords.accuracy);
+      const accClass = accuracy <= 20 ? 'good' : accuracy <= 60 ? 'fair' : 'poor';
+      const accLabel = accuracy <= 20 ? 'Good' : accuracy <= 60 ? 'Fair' : 'Poor';
+      document.getElementById('displayGps').className = 'value mono ok';
+      document.getElementById('displayGps').innerHTML =
+        `${lat.toFixed(5)}, ${lng.toFixed(5)}` +
+        `<span class="gps-accuracy ${accClass}">±${accuracy}m ${accLabel}</span>`;
+    },
+    err => {
+      gpsError = true;
+      setGpsDisplay('Location unavailable — check permissions', 'err');
+    },
+    { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+  );
+}
+
+function setGpsDisplay(msg, cls) {
+  const el = document.getElementById('displayGps');
+  el.className = `value mono ${cls}`;
+  el.textContent = msg;
+}
+
+// ── SUBMIT ────────────────────────────────────────
+async function submitCheckin() {
+  const guard = getGuard();
+  if (!guard) { window.location.href = 'signin.html'; return; }
+
+  if (gpsError) {
+    const proceed = confirm('GPS location is unavailable. Submit without location?');
+    if (!proceed) return;
+  }
+
+  const btn = document.getElementById('btnSubmit');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Submitting…';
+  setStatus('', '');
+
+  const payload = {
+    guardName:      guard.name,
+    guardPhone:     guard.phone,
+    guardIC:        guard.ic   || '',
+    guardPost:      guard.post || '',
+    checkpointId,
+    checkpointName,
+    lat,
+    lng,
+    accuracy,
+    notes: document.getElementById('notes').value.trim(),
+    timestamp: new Date().toISOString(),
+  };
+
+  try {
+    const res  = await fetch(`${BACKEND}/api/log-checkin`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+
+    if (data.ok) {
+      clearInterval(clockInterval);
+      populateDone(payload);
+      showSection('sDone');
+    } else {
+      throw new Error(data.error || 'Server error');
+    }
+  } catch (err) {
+    setStatus(err.message || 'Failed to submit. Try again.', 'err');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '✓ Submit Patrol Check-in';
+  }
+}
+
+function populateDone(p) {
+  const timeStr = new Date().toLocaleString('en-MY', {
+    day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12: true
+  });
+  document.getElementById('doneMsg').textContent =
+    `${p.checkpointName} · ${new Date().toLocaleTimeString('en-MY', { hour:'2-digit', minute:'2-digit', hour12:true })}`;
+  document.getElementById('dGuard').textContent      = p.guardName;
+  document.getElementById('dCheckpoint').textContent = `${p.checkpointName} (${p.checkpointId})`;
+  document.getElementById('dTime').textContent       = timeStr;
+  document.getElementById('dGps').textContent        =
+    p.lat ? `${p.lat.toFixed(4)}, ${p.lng.toFixed(4)}` : 'Unavailable';
+}
+
+function resetForm() {
+  document.getElementById('notes').value = '';
+  startClock();
+  startGps();
+  showSection('sCheckin');
+}
+
+function goSignIn()  { window.location.href = 'signin.html'; }
+
+function signOut() {
+  if (!confirm('Sign out from this device?')) return;
+  localStorage.clear();
+  window.location.href = 'signin.html';
+}
+
+// ── HELPERS ───────────────────────────────────────
+function showSection(id) {
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+function getGuard() {
+  try { return JSON.parse(localStorage.getItem('guard')); } catch { return null; }
+}
+function setStatus(msg, type) {
+  document.getElementById('checkinStatus').innerHTML =
+    msg ? `<div class="status ${type}">${msg}</div>` : '';
+}
+</script>
+</body>
+</html>
