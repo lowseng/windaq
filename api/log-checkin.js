@@ -1,5 +1,5 @@
 // api/log-checkin.js
-// Saves a guard patrol check-in record to Airtable
+// Validates checkpoint then saves patrol check-in to Airtable
 
 module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -15,18 +15,42 @@ module.exports = async function handler(req, res) {
     notes, timestamp
   } = req.body;
 
-  if (!guardName || !guardPhone || !checkpointName) {
+  if (!guardName || !guardPhone || !checkpointId) {
     return res.status(400).json({ error: 'Missing required fields' });
   }
 
-  const token = process.env.AIRTABLE_TOKEN;
-  const base  = process.env.AIRTABLE_BASE;
-  // Use a separate table for patrol logs
-  const table = process.env.AIRTABLE_LOG_TABLE || 'Patrol Log';
+  const token            = process.env.AIRTABLE_TOKEN;
+  const base             = process.env.AIRTABLE_BASE;
+  const logTable         = process.env.AIRTABLE_LOG_TABLE        || 'Patrol Log';
+  const checkpointTable  = process.env.AIRTABLE_CHECKPOINT_TABLE || 'Checkpoints';
 
   try {
-    const response = await fetch(
-      `https://api.airtable.com/v0/${base}/${encodeURIComponent(table)}`,
+    // ── STEP 1: Validate checkpoint ID against Airtable ──
+    const validateUrl = `https://api.airtable.com/v0/${base}/${encodeURIComponent(checkpointTable)}` +
+      `?filterByFormula=${encodeURIComponent(
+        `AND({Checkpoint ID}="${checkpointId}", {Active}=1)`
+      )}&maxRecords=1`;
+
+    const validateRes  = await fetch(validateUrl, {
+      headers: { 'Authorization': `Bearer ${token}` },
+    });
+    const validateData = await validateRes.json();
+
+    if (!validateData.records || validateData.records.length === 0) {
+      return res.status(400).json({
+        error: `Invalid checkpoint "${checkpointId}". This QR code is not recognised.`
+      });
+    }
+
+    // Use official name from Airtable — not from URL (prevents name spoofing too)
+    const cpFields         = validateData.records[0].fields;
+    const officialId       = cpFields['Checkpoint ID'];
+    const officialName     = cpFields['Checkpoint Name'];
+    const officialZone     = cpFields['Location / Zone'] || '';
+
+    // ── STEP 2: Save to Patrol Log ──
+    const saveRes  = await fetch(
+      `https://api.airtable.com/v0/${base}/${encodeURIComponent(logTable)}`,
       {
         method: 'POST',
         headers: {
@@ -37,23 +61,24 @@ module.exports = async function handler(req, res) {
           fields: {
             'Guard Name':       guardName,
             'Guard Phone':      guardPhone,
-            'Guard IC':         guardIC        || '',
-            'Posting':          guardPost      || '',
-            'Checkpoint ID':    checkpointId   || '',
-            'Checkpoint Name':  checkpointName,
+            'Guard IC':         guardIC       || '',
+            'Posting':          guardPost     || '',
+            'Checkpoint ID':    officialId,
+            'Checkpoint Name':  officialName,
+            'Zone':             officialZone,
             'Timestamp':        timestamp || new Date().toISOString(),
-            'GPS Latitude':     lat      || null,
-            'GPS Longitude':    lng      || null,
-            'GPS Accuracy (m)': accuracy || null,
-            'Notes':            notes    || '',
+            'GPS Latitude':     lat       || null,
+            'GPS Longitude':    lng       || null,
+            'GPS Accuracy (m)': accuracy  || null,
+            'Notes':            notes     || '',
           }
         }),
       }
     );
 
-    const data = await response.json();
-    if (data.id) return res.status(200).json({ ok: true, id: data.id });
-    throw new Error(data.error?.message || 'Airtable error');
+    const saveData = await saveRes.json();
+    if (saveData.id) return res.status(200).json({ ok: true, id: saveData.id });
+    throw new Error(saveData.error?.message || 'Failed to save to Airtable');
 
   } catch (err) {
     console.error('log-checkin error:', err);
