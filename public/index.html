@@ -201,7 +201,7 @@ select { padding-left: 40px; cursor: pointer; }
         </div>
       </div>
       <div class="field">
-        <label>WhatsApp number</label>
+        <label>SMS number</label>
         <div class="phone-row">
           <select id="iCode">
             <option value="+60">🇲🇾 +60</option>
@@ -219,10 +219,13 @@ select { padding-left: 40px; cursor: pointer; }
             <input type="tel" id="iPhone" placeholder="123 456 7890" inputmode="numeric" autocomplete="tel-national">
           </div>
         </div>
-        <p style="font-size:11px;color:var(--muted);margin-top:6px;">Enter the number where you receive WhatsApp.</p>
+        <p style="font-size:11px;color:var(--muted);margin-top:6px;">Enter the mobile number you will use for patrol sign-in.</p>
       </div>
-      <button class="btn btn-wa" id="btnSend" onclick="step1Next()"><span>📲</span> Send WhatsApp OTP</button>
+      <button class="btn btn-wa" id="btnSend" onclick="step1Next()"><span>📲</span> Send OTP Code</button>
       <div id="s1Status"></div>
+      <div style="margin-top:18px; text-align:center; font-size:13px; color:var(--muted);">
+        Already registered? <a href="signin.html" style="color:var(--green-dim);font-weight:600;text-decoration:none;">Sign in to your account →</a>
+      </div>
     </div>
 
     <!-- STEP 2 -->
