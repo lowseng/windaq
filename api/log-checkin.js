@@ -1,5 +1,5 @@
 // api/log-checkin.js
-// Validates checkpoint then saves patrol check-in to Airtable
+// Validates checkpoint + GPS proximity, then saves to Airtable
 
 module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -19,13 +19,13 @@ module.exports = async function handler(req, res) {
     return res.status(400).json({ error: 'Missing required fields' });
   }
 
-  const token            = process.env.AIRTABLE_TOKEN;
-  const base             = process.env.AIRTABLE_BASE;
-  const logTable         = process.env.AIRTABLE_LOG_TABLE        || 'Patrol Log';
-  const checkpointTable  = process.env.AIRTABLE_CHECKPOINT_TABLE || 'Checkpoints';
+  const token           = process.env.AIRTABLE_TOKEN;
+  const base            = process.env.AIRTABLE_BASE;
+  const logTable        = process.env.AIRTABLE_LOG_TABLE        || 'Patrol Log';
+  const checkpointTable = process.env.AIRTABLE_CHECKPOINT_TABLE || 'Checkpoints';
 
   try {
-    // ── STEP 1: Validate checkpoint ID against Airtable ──
+    // ── STEP 1: Validate checkpoint ID ──────────────────
     const validateUrl = `https://api.airtable.com/v0/${base}/${encodeURIComponent(checkpointTable)}` +
       `?filterByFormula=${encodeURIComponent(
         `AND({Checkpoint ID}="${checkpointId}", {Active}=1)`
@@ -38,17 +38,42 @@ module.exports = async function handler(req, res) {
 
     if (!validateData.records || validateData.records.length === 0) {
       return res.status(400).json({
-        error: `Invalid checkpoint "${checkpointId}". This QR code is not recognised.`
+        error: `Invalid checkpoint. This QR code is not recognised.`
       });
     }
 
-    // Use official name from Airtable — not from URL (prevents name spoofing too)
-    const cpFields         = validateData.records[0].fields;
-    const officialId       = cpFields['Checkpoint ID'];
-    const officialName     = cpFields['Checkpoint Name'];
-    const officialZone     = cpFields['Location / Zone'] || '';
+    const cp           = validateData.records[0].fields;
+    const officialId   = cp['Checkpoint ID'];
+    const officialName = cp['Checkpoint Name'];
+    const officialZone = cp['Location / Zone'] || '';
+    const cpLat        = cp['Latitude'];
+    const cpLng        = cp['Longitude'];
+    const maxRadius    = cp['Max Radius (m)'] || 50;
 
-    // ── STEP 2: Save to Patrol Log ──
+    // ── STEP 2: GPS proximity check ──────────────────────
+    let distanceMetres = null;
+    let proximityStatus = 'no_gps';
+
+    if (cpLat && cpLng) {
+      if (!lat || !lng) {
+        // Checkpoint has coordinates but guard has no GPS
+        return res.status(400).json({
+          error: 'GPS location is required for this checkpoint. Please enable location access and try again.'
+        });
+      }
+
+      distanceMetres = getDistanceMetres(lat, lng, cpLat, cpLng);
+
+      if (distanceMetres > maxRadius) {
+        return res.status(400).json({
+          error: `You are ${Math.round(distanceMetres)}m away from ${officialName}. You must be within ${maxRadius}m to check in.`
+        });
+      }
+
+      proximityStatus = 'verified';
+    }
+
+    // ── STEP 3: Save to Patrol Log ───────────────────────
     const saveRes  = await fetch(
       `https://api.airtable.com/v0/${base}/${encodeURIComponent(logTable)}`,
       {
@@ -61,8 +86,8 @@ module.exports = async function handler(req, res) {
           fields: {
             'Guard Name':       guardName,
             'Guard Phone':      guardPhone,
-            'Guard IC':         guardIC       || '',
-            'Posting':          guardPost     || '',
+            'Guard IC':         guardIC      || '',
+            'Posting':          guardPost    || '',
             'Checkpoint ID':    officialId,
             'Checkpoint Name':  officialName,
             'Zone':             officialZone,
@@ -70,6 +95,8 @@ module.exports = async function handler(req, res) {
             'GPS Latitude':     lat       || null,
             'GPS Longitude':    lng       || null,
             'GPS Accuracy (m)': accuracy  || null,
+            'Distance (m)':     distanceMetres ? Math.round(distanceMetres) : null,
+            'Proximity':        proximityStatus,
             'Notes':            notes     || '',
           }
         }),
@@ -78,10 +105,24 @@ module.exports = async function handler(req, res) {
 
     const saveData = await saveRes.json();
     if (saveData.id) return res.status(200).json({ ok: true, id: saveData.id });
-    throw new Error(saveData.error?.message || 'Failed to save to Airtable');
+    throw new Error(saveData.error?.message || 'Failed to save');
 
   } catch (err) {
     console.error('log-checkin error:', err);
     return res.status(500).json({ error: err.message });
   }
 };
+
+// ── Haversine formula — distance between two GPS points in metres ──
+function getDistanceMetres(lat1, lng1, lat2, lng2) {
+  const R  = 6371000; // Earth radius in metres
+  const φ1 = lat1 * Math.PI / 180;
+  const φ2 = lat2 * Math.PI / 180;
+  const Δφ = (lat2 - lat1) * Math.PI / 180;
+  const Δλ = (lng2 - lng1) * Math.PI / 180;
+  const a  = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
+             Math.cos(φ1) * Math.cos(φ2) *
+             Math.sin(Δλ/2) * Math.sin(Δλ/2);
+  const c  = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  return R * c;
+}
