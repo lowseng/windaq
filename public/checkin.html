@@ -389,6 +389,7 @@ async function submitCheckin() {
       populateDone(payload);
       showSection('sDone');
     } else {
+      // Show GPS distance error clearly
       throw new Error(data.error || 'Server error');
     }
   } catch (err) {
