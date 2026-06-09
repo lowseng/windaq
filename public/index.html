@@ -331,10 +331,30 @@ async function step1Next() {
 
   const btn = document.getElementById('btnSend');
   btn.disabled = true;
-  btn.innerHTML = '<span class="spinner"></span> Sending…';
+  btn.innerHTML = '<span class="spinner"></span> Checking…';
   setStatus('s1Status', '', '');
 
   try {
+    // Check if phone already registered
+    const checkRes  = await fetch(`${BACKEND}/api/check-phone`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone: currentPhone }),
+    });
+    const checkData = await checkRes.json();
+
+    if (checkData.exists) {
+      setStatus('s1Status',
+        '⚠️ This number is already registered. <a href="signin.html" style="color:#c0392b;font-weight:600;">Sign in instead →</a>',
+        'err'
+      );
+      btn.disabled = false;
+      btn.innerHTML = '<span>📲</span> Send WhatsApp OTP';
+      return;
+    }
+
+    btn.innerHTML = '<span class="spinner"></span> Sending…';
+
     const res  = await fetch(`${BACKEND}/api/send-otp`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
